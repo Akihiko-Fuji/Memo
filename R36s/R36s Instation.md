@@ -449,15 +449,8 @@ sudo apt autoremove
 
 # 10. 初期ネットワークにはBuffalo WLI-UC-GNMを使用する
 
-初期セットアップではAX900ではなく、
-
-**Buffalo WLI-UC-GNM**
-
-を使用する。
-
-これは最終構成ではなく、**セットアップと復旧のためのアダプタ**である。
-
-理由は単純で、
+初期セットアップではAX900ではなく、動作実績がある**Buffalo WLI-UC-GNM**を使用する。
+これは最終構成ではなく、**セットアップと復旧のためのアダプタ**である。理由は単純で、
 
 > **Linux Kernel標準の `rt2800usb` で動作し、追加ドライバなしでネットワークへ接続できる**
 
@@ -505,9 +498,7 @@ nmcli d
 
 # 11. なぜ最終構成をAX900にするのか
 
-標準R36SにはWi-FiもBluetoothも搭載されていない。
-
-USBレシーバーを使えば追加できるが、
+標準R36SにはWi-FiもBluetoothも搭載されていない。USBレシーバーを使えば追加できるが、
 
 ```text
 Wi-Fi USB dongle
@@ -517,7 +508,7 @@ Bluetooth USB dongle
 
 のように2デバイスへ分けると、
 
-- USB Hubが必要
+- USB Hubへの給電が必要
 - 消費電力増加
 - ケーブル増加
 - 携帯性低下
@@ -525,15 +516,11 @@ Bluetooth USB dongle
 
 となる。
 
-さらに今回のR36Sでは、実機評価からOTG側の給電余力が大きくないと判断した。
-
-そこで、
+さらに今回のR36Sでは、実機評価からOTG側の給電余力が大きくないと判断した。そこで、
 
 > **Wi-Fi + Bluetoothを1本のUSBレシーバーで実現できるAX900**
 
-を採用する。
-
-AX900採用の主目的は単純な通信速度ではなく、
+を採用する。AX900採用の主目的は単純な通信速度ではなく、
 
 > **給電能力に余裕の少ないOTGポートで、Wi-FiとBluetoothをUSB 1デバイスへ集約すること**
 
@@ -543,7 +530,7 @@ AX900採用の主目的は単純な通信速度ではなく、
 
 # 12. AX900のハードウェア
 
-今回使用したAX900はAICSemi AIC8800D80系。
+今回使用したAX900はAICSemi AIC8800D80系。購入した製品は[これ](https://ja.aliexpress.com/item/1005012250661281.html)であるが、必ずしも動作するとは限らない。
 
 実機判定：
 
@@ -558,9 +545,7 @@ chip_mcu_id=1
 legacy-mcu1
 ```
 
-branchを使用する。
-
-同じAX900の商品名でも内部chip revisionが異なる可能性があるため、別個体へ展開する場合は注意する。
+branchを使用する。同じAX900の商品名でも内部chip revisionが異なる可能性があるため、別個体へ展開する場合は注意する。
 
 ---
 
@@ -610,9 +595,7 @@ ls -l /lib/modules/$(uname -r)/build
 
 ## 15.1 目的
 
-外部Kernel moduleは、実行中Kernelと同じ構成を前提としてビルドする必要がある。
-
-今回のRC5では、
+外部Kernel moduleは、実行中Kernelと同じ構成を前提としてビルドする必要がある。今回のRC5では、
 
 ```text
 CONFIG_DEBUG_INFO_BTF
@@ -786,9 +769,7 @@ R36S
        └─ rt2800usb
 ```
 
-のみとする。
-
-これにより、
+のみとする。これにより、
 
 - SSH接続を維持
 - AX900初期化とDriver installを分離
@@ -833,9 +814,7 @@ AX900をまだ挿していないため、
 Checking for Bluetooth interfaces on combo adapters...
 ```
 
-でBluetooth device待ちになる場合がある。
-
-以下まで終了していれば、
+でBluetooth device待ちになる場合がある。以下まで終了していれば、
 
 ```text
 DKMS module registered
@@ -843,9 +822,7 @@ Wi-Fi kernel module is loaded
 Firmware installed
 ```
 
-主要なインストール処理は終了している。
-
-その場合は `Ctrl+C` で終了してよい。
+主要なインストール処理は終了している。その場合は `Ctrl+C` で終了しても問題ない。
 
 ---
 
@@ -884,9 +861,7 @@ AIC Wlan
 AIC 8800D80
 ```
 
-とUSB deviceを再列挙する。
-
-Driver installerにより、
+とUSB deviceを再列挙する。Driver installerにより、
 
 - udev
 - usb_modeswitch
@@ -956,9 +931,7 @@ AX900
 
 # 23. USB給電・安定性確認
 
-AX900採用の重要な目的はUSB負荷の低減である。
-
-最終構成で、
+AX900採用の重要な目的はUSB負荷の低減である。最終構成で、
 
 ```bash
 sudo dmesg \
@@ -986,9 +959,7 @@ over-current
 undervoltage
 ```
 
-が通常利用中に繰り返される場合は、給電またはUSB信号品質を疑う。
-
-今回のAX900単独構成では継続的なUSB異常は確認されなかった。
+が通常利用中に繰り返される場合は、給電またはUSB信号品質を疑う。今回のAX900単独構成では継続的なUSB異常は確認されなかった。
 
 ---
 
@@ -1032,15 +1003,11 @@ Buffalo WLI-UC-GNM
 
 # 25. Buffaloは復旧用として残す
 
-AX900導入後、Buffaloは通常運用では使用しない。
-
-ただしLinux標準driverで動作するため、
+AX900導入後、Buffaloは通常運用では使用しない。ただしLinux標準driverで動作するため、
 
 > **Driver更新やKernel更新後にAX900が使えなくなった場合の復旧用Wi-Fi**
 
-として保管する。
-
-必要なら、
+として保管する。必要なら、
 
 ```bash
 sudo modprobe rt2800usb
@@ -1066,15 +1033,11 @@ dkms status
 - U-Boot
 - BSP
 
-の組み合わせが重要である。
-
-したがって、
+の組み合わせが重要である。したがって、
 
 > **UbuntuだからKernelも無条件に最新版へ上げる**
 
-という運用はしない。
-
-R36S対応状況を確認してから更新する。
+という運用はしない。R36S対応状況を確認してから更新する。
 
 ---
 
@@ -1112,56 +1075,3 @@ build/sdlnp21kai_sdl2
 ことの確認にもなる。
 
 ---
-
-# 28. この構成のまとめ
-
-今回の考え方は、
-
-```text
-標準R36S
-   ↓
-R36S用Armbian
-   ↓
-Buffaloで標準Wi-Fiを確保
-   ↓
-SSHでキッティング
-   ↓
-日本語・xvkbd・開発環境
-   ↓
-AX900 DriverをDKMS導入
-   ↓
-Buffaloを外す
-   ↓
-AX900 1本へWi-Fi + Bluetoothを集約
-```
-
-となる。
-
-Raspberry Pi Zero 2 Wと比較すると、R36SにはWi-Fi/BluetoothやGPIO環境で不利な点がある。
-
-一方で、
-
-- 1GB RAM
-- 液晶
-- ケース
-- バッテリー
-- ゲームコントローラー
-- microSD ×2
-- USB-C OTG
-- Linux対応
-
-が最初から一体化されている。
-
-そのため、
-
-> **約5,000円で入手できる「完成した携帯型ARM Linux端末」をPC化する**
-
-という観点では非常に面白いハードウェアである。
-
-ただし最大の注意点は、
-
-> **「R36S」という商品名だけでは内部ハードウェアを保証できない**
-
-こと。
-
-Armbian導入前にRK3326系の標準R36Sであることを確認し、その上でキッティングを開始する。
