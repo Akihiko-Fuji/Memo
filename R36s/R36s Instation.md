@@ -61,7 +61,7 @@ R36Sは本来レトロゲーム用の携帯端末だが、ハードウェアと�
 
 | 項目 | R36S | Raspberry Pi Zero 2 W |
 | --- | --- | --- |
-| CPU | RK3326 / Cortex-A35 ×4 / 最大1.5GHz | Cortex-A53 ×4 / 1GHz |
+| CPU | RK3326 / Cortex-A35 ×quad 1.5GHz | Cortex-A53 ×dual 1GHz |
 | RAM | 1GB DDR3L | 512MB |
 | 液晶 | 3.5インチ 640×480 IPS | なし |
 | ケース | 標準装備 | 別途必要 |
@@ -69,8 +69,8 @@ R36Sは本来レトロゲーム用の携帯端末だが、ハードウェアと�
 | 操作系 | D-pad、ABXY、2スティック等 | なし |
 | microSD | 2スロット | 1スロット |
 | USB OTG | USB-C | micro USB |
-| Wi-Fi | なし(Wi-Fi 6) | 2.4GHz Wi-Fi内蔵 |
-| Bluetooth | なし(BT 5.3) | Bluetooth 4.2内蔵 |
+| Wi-Fi | なし (Wi-Fi 6) | 2.4GHz Wi-Fi内蔵 |
+| Bluetooth | なし (Bluetooth 5.3) | Bluetooth 4.2内蔵 |
 | GPIO | 実質利用対象外 | 40pin |
 | 映像出力 | なし | mini HDMI |
 
