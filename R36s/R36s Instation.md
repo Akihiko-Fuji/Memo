@@ -1,136 +1,192 @@
 # R36S Armbian キッティング手順
 
-## 1. 目的
+## 1. このキッティングの目的
 
-R36Sをゲーム専用機としてではなく、**小型のLinux PCとして利用できる環境**へセットアップする。
+R36Sをゲーム専用機としてではなく、**携帯可能な小型Linux PCとして利用する**ことを目的とする。
+R36Sは本来レトロゲーム用の携帯端末だが、ハードウェアとして見ると、
 
-単にArmbianを起動するだけではなく、最終的に以下を満たすことを目標とする。
+- 64bit ARM SoC
+- 1GB RAM
+- 3.5インチ 640×480 IPS液晶
+- ケース
+- バッテリー
+- 十字キー、ABXY、アナログスティック等の入力装置
+- 2つのmicroSDスロット
+- USB-C OTG
+- オーディオ
+- Linuxを起動可能なハードウェア
 
-- XFCEによるデスクトップ利用
+が最初から一体になっている。
+今回の購入個体は64GB microSD付きで[概ね5,000円程度](https://ja.aliexpress.com/w/wholesale-R36s-%E6%AD%A3%E8%A6%8F.html?spm=a2g0o.detail.search.0)で購入が可能である。
+このハードウェアへArmbianを導入し、
+
+- XFCEデスクトップ
 - 日本語入力
-- 本体単独でも操作できるソフトウェアキーボード
-- SSHによるリモート操作
+- ソフトウェアキーボード
+- SSH
 - Wi-Fi
 - Bluetooth
-- USB機器をできるだけ少なくした構成
-- Kernel更新後も再構築可能なDKMSベースのWi-Fiドライバ
-- 必要に応じてLinuxアプリケーションをnative buildできる開発環境
+- Linuxアプリケーションのnative build環境
 
-最終構成は以下。
-
-| 項目 | 構成 |
-| --- | --- |
-| 本体 | R36S |
-| SoC | Rockchip RK3326 |
-| OS | Armbian-unofficial / Ubuntu 24.04 Noble |
-| Kernel | Linux 6.12.32-lts-rk3326 / aarch64 |
-| Desktop | XFCE |
-| Wi-Fi | AX900 / AIC8800D80系 |
-| Bluetooth | AX900内蔵Bluetooth |
-| Wi-Fi Driver | `aic8800_fdrv` |
-| Bluetooth Driver | Linux標準 `btusb` |
-| 日本語入力 | Fcitx5 + Mozc |
-| ソフトウェアキーボード | `xvkbd` |
-| セットアップ・復旧用Wi-Fi | Buffalo WLI-UC-GNM / `rt2800usb` |
+を追加する。
 
 ---
 
-# 2. 構成方針
+# 2. Raspberry Pi Zero 2 Wとの比較
 
-今回のキッティングでは、R36Sの制約を踏まえて以下の方針とする。
+この用途で比較対象になるのは、Raspberry Pi Zero 2 Wである。Raspberry Pi Zero 2 Wは、
 
-## 2.1 標準機能をできるだけ利用する
+- 4コア Cortex-A53 1GHz
+- 512MB RAM
+- Wi-Fi 2.4GHz
+- Bluetooth 4.2 / BLE
+- microSD ×1
+- USB OTG
+- GPIO
+- mini HDMI
 
-R36Sは一般的なPCと異なり、独自Kernel、DTB、U-Boot等への依存が大きい。
+を備えた小型SBCである。一方、標準的なR36Sは、
 
-そのため、
+- RK3326 / Cortex-A35 4コア 最大1.5GHz
+- 1GB DDR3L
+- 3.5インチ 640×480 IPS液晶
+- microSD ×2
+- USB-C OTG
+- バッテリー
+- ケース
+- スピーカー
+- ゲームコントローラー一式
 
-- OS標準ドライバで動くものは標準ドライバを使う
-- Kernel自体を不用意に交換しない
-- 外部ドライバはDKMSで管理する
-- 動作中のKernelとheadersの整合性を確認する
+を備える。比較すると以下のようになる。
 
-ことを基本とする。
+| 項目 | R36S | Raspberry Pi Zero 2 W |
+| --- | --- | --- |
+| CPU | RK3326 / Cortex-A35 ×4 / 最大1.5GHz | Cortex-A53 ×4 / 1GHz |
+| RAM | 1GB DDR3L | 512MB |
+| 液晶 | 3.5インチ 640×480 IPS | なし |
+| ケース | 標準装備 | 別途必要 |
+| バッテリー | 標準装備 | 別途必要 |
+| 操作系 | D-pad、ABXY、2スティック等 | なし |
+| microSD | 2スロット | 1スロット |
+| USB OTG | USB-C | micro USB |
+| Wi-Fi | なし | 2.4GHz Wi-Fi内蔵 |
+| Bluetooth | なし | Bluetooth 4.2内蔵 |
+| GPIO | 実質利用対象外 | 40pin |
+| 映像出力 | なし | mini HDMI |
+
+CPUについてはR36SのRK3326の方が動作クロックは高いが、Cortex-A35とCortex-A53ではCPUコアのアーキテクチャが異なるため、**あらゆる処理でR36Sの方が高速という意味ではない**。
+PC化という用途で明確なメリットになるのは、
+
+> **1GB RAMと、液晶・ケース・バッテリー・入力装置・ストレージスロットまで含めた完成した携帯端末が約5,000円程度で手に入ること**
+
+である。つまりR36Sは、
+
+> **「液晶とバッテリーとコントローラーまで付いた格安ARM SBC」**
+
+として見ることができる。
+
+一方で最大の弱点は、
+
+- Wi-Fiなし
+- Bluetoothなし
+- OTGポートの給電能力に余裕が少ない
+
+ことである。そこで今回、
+
+> **Wi-FiとBluetoothを1本のUSBレシーバーへ集約する**
+
+ことを重要な設計条件とした。
 
 ---
 
-## 2.2 セットアップ用と最終構成を分ける
+# 3. R36Sのクローン・別ハードウェアに注意
 
-Wi-Fi設定を行うためにWi-Fiが必要、という循環を避けるため、初期セットアップでは
+## 3.1 「R36S」という名前だけではハードウェアを特定できない
 
-**Buffalo WLI-UC-GNM**
+R36Sには多数の互換機・クローン・外観だけ似せた別ハードウェアが存在する。標準的なR36SはRockchip RK3326を使用しているが、市場には、
+
+- RK3326を使う別基板
+- RK3128
+- Allwinner A33
+- MTK6572系
+
+など、異なるSoCを搭載した「R36S」も存在する。特に後者のような**SoC自体が異なるモデルは、標準R36S用のArkOSやArmbianをそのまま使用できない**。
+
+したがって、
+
+> **R36S-Armbianを書き込む前に、対象端末が標準的なRK3326系R36Sであることを確認する**
+
+必要がある。
+
+---
+
+## 3.2 オリジナル系を見分ける目安
+
+コミュニティでよく使われている確認ポイントとして、
+
+### RAMチップ
+
+標準的なR36Sでは、
+
+> **RAMチップが2枚実装され、合計1GB**
+
+となっている個体が多い。一方、初期のクローンにはRAMチップ1枚のものが多く、中には512MBしか搭載していないものもある。ただし現在では、
+
+> **RAMチップ2枚のクローンも存在する**
+
+ため、これだけでオリジナルと断定してはいけない。
+
+---
+
+### microSDを抜いて起動する
+
+標準的なR36SはOSをmicroSDから起動し、基本的にOS用内蔵ストレージを持たない。そのため、
+
+> **microSDをすべて抜いて電源を入れても、通常はOSやエラーメニューまで起動しない**
+
+ことが標準R36Sを判断する一つの目安になる。一部クローンは内蔵ストレージ等から起動し、
+
+```text
+We can't find any systems!
+```
+
+等のメッセージを表示するものが確認されている。
+
+---
+
+### そのほかの確認材料
+
+- SoCがRK3326
+- RAMが1GB
+- 標準ArkOS系が起動する
+- EASYROMS partitionを使用
+- クローン固有のDTBではない
+- microSDなしではOSが起動しない
+- 基板・RAM実装を確認する
+
+など、複数の条件を合わせて判断する。
+
+> **「RAMチップが2枚だから絶対にオリジナル」という判定はしない。**
+
+本手順は、**RK3326 / 1GB RAMの標準R36S系個体**を対象とする。
+
+---
+
+# 4. Armbianの導入
+
+R36S対応Armbianとして、
+
+**R36S-Stuff / R36S-Armbian**
 
 を使用する。
 
-このアダプタはLinux Kernel標準の
-
-```text
-rt2800usb
-```
-
-で動作するため、**追加ドライバをインストールする前からネットワークへ接続できる**。
-
-したがってBuffaloは、
-
-- 初回セットアップ
-- AX900ドライバ取得
-- DKMSビルド
-- SSH接続
-- 障害時の復旧
-
-に利用する「ブートストラップ用Wi-Fi」と位置付ける。
-
----
-
-## 2.3 最終的にはAX900へ集約する
-
-R36SのOTGポートはUSB機器への給電余力が大きくない。
-
-Wi-Fi用USBアダプタとBluetooth用USBアダプタを別々に接続すると、
-
-- USB機器数が増える
-- USB Hubが必要になる
-- 消費電力が増える
-- 配線が複雑になる
-- USBバスの安定性にも不利
-
-となる。
-
-そこで最終構成では、
-
-**Wi-Fi + Bluetoothを1本のUSBレシーバーで提供するAX900**
-
-へ集約する。
-
-AX900を選択する主目的はWi-Fi速度だけではなく、
-
-> **給電能力に余裕の少ないR36SのOTG環境で、Wi-FiとBluetoothをUSBレシーバー1本にまとめること**
-
-である。
-
----
-
-# 3. Armbianの導入
-
-## 3.1 使用イメージ
-
-R36S対応Armbianとして以下を使用する。
-
-### R36S-Stuff / R36S-Armbian
-
 Repository:
 
-https://github.com/R36S-Stuff/R36S-Armbian
+`R36S-Stuff/R36S-Armbian`
 
-Release一覧:
+Releaseは同Repositoryの `Releases` から取得する。R36S-Stuff側のREADMEでも、Releaseの配布先として同RepositoryのReleaseページが案内されている。今回使用したのはRC5。
 
-https://github.com/R36S-Stuff/R36S-Armbian/releases
-
-今回使用したRC5:
-
-https://github.com/R36S-Stuff/R36S-Armbian/releases/tag/RC5
-
-今回確認した環境：
+使用環境：
 
 ```text
 Armbian-unofficial 25.08.0-trunk noble
@@ -139,23 +195,23 @@ Linux 6.12.32-lts-rk3326
 aarch64
 ```
 
----
-
-## 3.2 microSDへの書き込み
-
-配布イメージが `.xz` 形式の場合、そのままRufus等でmicroSDへ書き込める。
-
-Windowsでは例えば以下を使用できる。
-
-- Rufus
-- Raspberry Pi Imager
-- balenaEtcher
-
-書き込み後、microSDをR36Sへ装着して起動する。
+配布イメージが `.xz` の場合、Rufus等でそのままmicroSDへ書き込める。書き込み後、R36SのOS用microSDスロットへ挿入して起動する。
 
 ---
 
-# 4. 初期確認
+# 5. 初期確認
+
+Architecture：
+
+```bash
+uname -m
+```
+
+期待値：
+
+```text
+aarch64
+```
 
 Kernel：
 
@@ -169,45 +225,24 @@ uname -r
 6.12.32-lts-rk3326
 ```
 
-CPU architecture：
-
-```bash
-uname -m
-```
-
-期待値：
-
-```text
-aarch64
-```
-
 OS：
 
 ```bash
 cat /etc/os-release
 ```
 
-この時点で、
-
-> 「R36S用Kernelで起動していること」
-
-を確認してから追加設定へ進む。
+ここでR36S向けKernelで正常に起動していることを確認してから、追加設定へ進む。
 
 ---
 
-# 5. microSD容量の確認と拡張
+# 6. microSD容量の拡張
 
-## 5.1 意図
+OSイメージを書き込んだ直後は、microSD全体までroot partitionが拡張されていない場合がある。
 
-OSイメージの容量のままroot filesystemが残っていると、128GB等のmicroSDを使用しても数GBしか利用できない場合がある。
-
-最初に確認しておく。
+確認：
 
 ```bash
 df -h /
-```
-
-```bash
 lsblk
 ```
 
@@ -217,19 +252,13 @@ lsblk
 /dev/mmcblk1p2
 ```
 
-root partitionがmicroSD末尾まで拡張されていなければ、確認の上で拡張する。
-
-例：
-
-```bash
-sudo parted /dev/mmcblk1 --script resizepart 2 100%
-```
-
-ext4 filesystemも拡張する。
+partitionをmicroSD末尾まで拡張した後、
 
 ```bash
 sudo resize2fs /dev/mmcblk1p2
 ```
+
+でext4 filesystemを拡張する。
 
 確認：
 
@@ -237,66 +266,50 @@ sudo resize2fs /dev/mmcblk1p2
 df -h /
 ```
 
-今回、約128GBのmicroSDで約115GBのroot領域を利用できる状態となった。
+今回、128GB級microSDで約115GBのroot filesystemを利用できる状態となった。
 
 ---
 
-# 6. 基本パッケージ
-
-パッケージ情報を更新する。
+# 7. 基本パッケージ
 
 ```bash
 sudo apt update
 ```
 
-開発・ビルド用：
-
 ```bash
 sudo apt install -y git build-essential dkms
 ```
 
-## 方針
+R36S-Armbianは一般的なUbuntu PCとは異なり、Kernel、DTB、U-Boot等がR36S向けに調整されている。
 
-R36S-Armbianは通常のUbuntu PCとは異なり、Kernel、DTB、U-Boot等がR36S向けに調整されている。
+そのため、
 
-そのため、環境構築のために必要な個別パッケージは導入するが、
+> **必要なアプリケーションは更新しても、Kernel周辺を無条件に最新版へ変更しない**
 
-```bash
-apt full-upgrade
-```
-
-等でKernel周辺を無条件に更新することは避ける。
+ことを基本方針とする。
 
 ---
 
-# 7. 日本語入力
+# 8. 日本語入力
 
-## 7.1 意図
-
-R36SをLinux PCとして利用するため、日本語入力はOS標準に近い構成で用意する。
-
-入力メソッド：
+日本語入力には、
 
 - Fcitx5
 - Mozc
 
 を使用する。
 
-インストール：
-
 ```bash
 sudo apt install -y fcitx5 fcitx5-mozc
 ```
-
-Fcitx5を入力メソッドとして設定：
 
 ```bash
 im-config -n fcitx5
 ```
 
-その後、ログアウトまたは再起動する。
+ログアウトまたは再起動する。
 
-必要に応じて設定GUIを開く。
+設定GUI：
 
 ```bash
 fcitx5-configtool
@@ -304,25 +317,21 @@ fcitx5-configtool
 
 ---
 
-# 8. ソフトウェアキーボード
+# 9. ソフトウェアキーボード
 
-## 8.1 なぜ必要か
+## 9.1 目的
 
-R36Sは物理キーボードを標準装備していない。
+R36Sを携帯PCとして利用する以上、
 
-USBキーボードを接続すればPCとして操作できるが、
+> **USBキーボードを接続しなくても最低限の文字入力ができる**
 
-- USBポートを消費する
-- OTG給電を消費する
-- 外出先でキーボードを持ち歩く必要がある
+状態にしておきたい。
 
-ため、最低限の操作を本体単独で行えるようにしておく。
-
-今回は `xvkbd` を使用する。
+特にUSB OTGはAX900で使用するため、日常操作のためだけにUSBキーボードを常時接続する構成にはしない。
 
 ---
 
-## 8.2 インストール
+## 9.2 xvkbdの導入
 
 ```bash
 sudo apt install -y xvkbd
@@ -334,30 +343,24 @@ sudo apt install -y xvkbd
 xvkbd
 ```
 
-バックグラウンド起動する場合：
-
-```bash
-xvkbd &
-```
-
 ---
 
-## 8.3 XFCEパネルへ登録
+## 9.3 XFCEパネルから起動できるようにする
 
-常時自動起動すると画面を占有するため、通常は
+画面が小さいため、xvkbdを常時表示するのではなく、
 
-> **必要なときだけXFCEパネルから呼び出す**
+> **必要なときだけパネルから呼び出す**
 
-構成を推奨する。
+方式とする。
 
-XFCEのパネル上で、
+XFCEパネル上で、
 
 1. パネルを右クリック
 2. `パネル`
 3. `新しいアイテムの追加`
-4. `ランチャー` を追加
+4. `ランチャー`
 5. ランチャーのプロパティを開く
-6. 新規アイテムを追加
+6. 新しい項目を追加
 
 以下を設定する。
 
@@ -369,21 +372,17 @@ xvkbd
 xvkbd
 ```
 
-必要に応じてキーボードのアイコンを設定する。
-
-これにより、R36S本体だけでもパネルをタップしてソフトウェアキーボードを起動できる。
+これで画面上のアイコンからソフトウェアキーボードを起動できる。
 
 ---
 
-## 8.4 自動起動させる場合
+## 9.4 自動起動する場合
 
-起動直後から常に表示したい場合のみAutostartへ登録する。
+必要であれば、
 
 ```bash
 mkdir -p ~/.config/autostart
 ```
-
-以下を作成する。
 
 ```bash
 nano ~/.config/autostart/xvkbd.desktop
@@ -400,24 +399,20 @@ OnlyShowIn=XFCE;
 X-GNOME-Autostart-enabled=true
 ```
 
-ただしR36Sの画面は小さいため、
-
-> **自動起動よりパネルランチャー方式の方が使いやすい**
-
-と考える。
+ただしR36Sでは表示面積が限られるため、パネルランチャー方式を推奨する。
 
 ---
 
-## 8.5 日本語入力との関係
+## 9.5 日本語入力
 
-`xvkbd` 自体が日本語変換を行うわけではない。
+xvkbdは日本語変換を行うアプリではない。
 
-役割分担は、
+構成は、
 
 ```text
 xvkbd
   ↓
-キーストローク入力
+キー入力
   ↓
 Fcitx5
   ↓
@@ -430,41 +425,43 @@ Mozc
 
 ---
 
-## 8.6 Onboardの削除
+## 9.6 Onboardの削除
 
-標準で入っていたOnboardは今回の環境では使用しないため削除する。
+標準で導入されていたOnboardは使用しないため削除する。
 
 ```bash
 sudo apt purge -y onboard onboard-common
 ```
 
-不要依存パッケージは、削除前に確認する。
+不要依存を確認：
 
 ```bash
 sudo apt autoremove --dry-run
 ```
 
-問題がなければ、
+問題なければ：
 
 ```bash
 sudo apt autoremove
 ```
 
-を実行する。
-
 ---
 
-# 9. 初期ネットワーク：Buffalo WLI-UC-GNM
+# 10. 初期ネットワークにはBuffalo WLI-UC-GNMを使用する
 
-## 9.1 なぜBuffaloを使用するのか
+初期セットアップではAX900ではなく、
 
-初期セットアップではAX900ではなくBuffalo WLI-UC-GNMを使用する。
+**Buffalo WLI-UC-GNM**
 
-理由は、
+を使用する。
 
-> **Linux Kernel標準の `rt2800usb` で動作し、追加ドライバなしでWi-Fiへ接続できるため**
+これは最終構成ではなく、**セットアップと復旧のためのアダプタ**である。
 
-である。
+理由は単純で、
+
+> **Linux Kernel標準の `rt2800usb` で動作し、追加ドライバなしでネットワークへ接続できる**
+
+ためである。
 
 USB ID：
 
@@ -478,17 +475,19 @@ Driver：
 rt2800usb
 ```
 
-確認：
+認識：
 
 ```bash
 lsusb
 ```
 
+Driver：
+
 ```bash
 lsmod | grep rt2800
 ```
 
-必要なら手動ロード：
+必要なら：
 
 ```bash
 sudo modprobe rt2800usb
@@ -500,24 +499,60 @@ NetworkManager：
 nmcli d
 ```
 
-Wi-Fiへ接続した後はSSHを使用すると、その後の大量のコマンド入力が容易になる。
+ここでWi-Fiを接続し、その後の作業はSSHから実施する。
 
 ---
 
-# 10. AX900導入方針
+# 11. なぜ最終構成をAX900にするのか
 
-AX900は最終的なWi-Fi/Bluetoothアダプタとして使用する。
+標準R36SにはWi-FiもBluetoothも搭載されていない。
 
-今回確認した個体はAICSemi AIC8800D80系で、
+USBレシーバーを使えば追加できるが、
+
+```text
+Wi-Fi USB dongle
++
+Bluetooth USB dongle
+```
+
+のように2デバイスへ分けると、
+
+- USB Hubが必要
+- 消費電力増加
+- ケーブル増加
+- 携帯性低下
+- OTG給電負荷増加
+
+となる。
+
+さらに今回のR36Sでは、実機評価からOTG側の給電余力が大きくないと判断した。
+
+そこで、
+
+> **Wi-Fi + Bluetoothを1本のUSBレシーバーで実現できるAX900**
+
+を採用する。
+
+AX900採用の主目的は単純な通信速度ではなく、
+
+> **給電能力に余裕の少ないOTGポートで、Wi-FiとBluetoothをUSB 1デバイスへ集約すること**
+
+である。
+
+---
+
+# 12. AX900のハードウェア
+
+今回使用したAX900はAICSemi AIC8800D80系。
+
+実機判定：
 
 ```text
 chip_id=7
 chip_mcu_id=1
 ```
 
-の個体である。
-
-そのため、
+このためDriverは、
 
 ```text
 legacy-mcu1
@@ -525,15 +560,11 @@ legacy-mcu1
 
 branchを使用する。
 
-> 同じAX900という商品名でも内部chip revisionが異なる可能性はあるため、別個体へ展開する場合はchip revisionを確認する。
-
-今回のキッティング手順は、実際に動作確認できた `chip_mcu_id=1` の個体を対象とする。
+同じAX900の商品名でも内部chip revisionが異なる可能性があるため、別個体へ展開する場合は注意する。
 
 ---
 
-# 11. AX900ビルド環境
-
-必要パッケージ：
+# 13. AX900ビルド環境
 
 ```bash
 sudo apt install -y \
@@ -560,11 +591,7 @@ v1.25
 
 ---
 
-# 12. Kernel headers確認
-
-外部Kernel moduleをDKMSでビルドするため、現在動作しているKernelに対応するheadersが必要となる。
-
-確認：
+# 14. Kernel headers確認
 
 ```bash
 ls -l /lib/modules/$(uname -r)/build
@@ -579,30 +606,31 @@ ls -l /lib/modules/$(uname -r)/build
 
 ---
 
-# 13. R36S-Armbian RC5のBTF設定確認
+# 15. R36S-Armbian RC5のBTF設定補正
 
-## 13.1 なぜ確認するのか
+## 15.1 目的
 
-外部Kernel moduleは、実行中Kernelと同じKernel構成を前提にビルドする必要がある。
+外部Kernel moduleは、実行中Kernelと同じ構成を前提としてビルドする必要がある。
 
-特に、
+今回のRC5では、
 
 ```text
+CONFIG_DEBUG_INFO_BTF
 CONFIG_DEBUG_INFO_BTF_MODULES
 ```
 
-はKernel内部の `struct module` の構造にも影響する。
+について、
 
-今回のRC5環境では、
-
-- 実行中Kernel
+- 実Kernel
 - 配布headers
 
-のBTF設定に差があるため、AX900をDKMS buildする前に整合させる。
+の設定差が確認された。
+
+特に `CONFIG_DEBUG_INFO_BTF_MODULES` はKernel module内部構造にも影響するため、DKMS build前に一致させる。
 
 ---
 
-## 13.2 実Kernel設定
+## 15.2 実Kernel設定
 
 ```bash
 KVER=$(uname -r)
@@ -612,8 +640,6 @@ HDR=/usr/src/linux-headers-$KVER
 ```bash
 zcat /proc/config.gz > /tmp/running-kernel.config
 ```
-
-確認：
 
 ```bash
 grep '^CONFIG_DEBUG_INFO_BTF' /tmp/running-kernel.config
@@ -628,13 +654,11 @@ CONFIG_DEBUG_INFO_BTF_MODULES=y
 
 ---
 
-## 13.3 headers側確認
+## 15.3 headers確認
 
 ```bash
 grep '^CONFIG_DEBUG_INFO_BTF' "$HDR/.config"
 ```
-
-さらに、
 
 ```bash
 grep CONFIG_DEBUG_INFO_BTF \
@@ -648,42 +672,27 @@ grep CONFIG_DEBUG_INFO_BTF \
 
 実Kernelと一致していれば変更不要。
 
-一致していない場合のみ補正する。
-
 ---
 
-## 13.4 バックアップ
+## 15.4 不一致の場合
+
+バックアップ：
 
 ```bash
-sudo cp "$HDR/.config" \
-        "$HDR/.config.original"
-```
-
-```bash
+sudo cp "$HDR/.config" "$HDR/.config.original"
 sudo cp "$HDR/include/generated/autoconf.h" \
         "$HDR/include/generated/autoconf.h.original"
-```
-
-```bash
 sudo cp "$HDR/include/config/auto.conf" \
         "$HDR/include/config/auto.conf.original"
 ```
 
----
-
-## 13.5 `.config`
-
-実Kernel設定をコピーする。
+実Kernel設定：
 
 ```bash
 sudo cp /tmp/running-kernel.config "$HDR/.config"
 ```
 
----
-
-## 13.6 `autoconf.h`
-
-不足している場合のみ追加する。
+`autoconf.h`：
 
 ```bash
 grep -q '^#define CONFIG_DEBUG_INFO_BTF 1$' \
@@ -699,9 +708,7 @@ grep -q '^#define CONFIG_DEBUG_INFO_BTF_MODULES 1$' \
   | sudo tee -a "$HDR/include/generated/autoconf.h"
 ```
 
----
-
-## 13.7 `auto.conf`
+`auto.conf`：
 
 ```bash
 grep -q '^CONFIG_DEBUG_INFO_BTF=y$' \
@@ -717,53 +724,31 @@ grep -q '^CONFIG_DEBUG_INFO_BTF_MODULES=y$' \
   | sudo tee -a "$HDR/include/config/auto.conf"
 ```
 
-確認：
-
-```bash
-grep CONFIG_DEBUG_INFO_BTF \
-  "$HDR/include/generated/autoconf.h"
-```
-
-```bash
-grep CONFIG_DEBUG_INFO_BTF \
-  "$HDR/include/config/auto.conf"
-```
-
 ---
 
-## 13.8 注意
+## 15.5 注意
 
-R36S-Armbianの配布headersは完全なKernel source treeではない。
+このheadersパッケージは完全なKernel source treeではない。
 
-そのため、
+したがって、
 
 ```bash
 make prepare
 ```
 
-や、
-
 ```bash
 make modules_prepare
 ```
 
-によってheaders tree全体を再生成しようとしない。
-
-今回必要なのは、
-
-> **外部moduleをコンパイルするときに参照されるKernel設定を、実行中Kernelと一致させること**
-
-である。
+による再生成は行わない。
 
 ---
 
-# 14. AX900ドライバ取得
+# 16. AX900 Driver取得
 
 Driver：
 
-https://github.com/shenmintao/aic8800d80
-
-取得：
+`shenmintao/aic8800d80`
 
 ```bash
 cd ~
@@ -771,13 +756,10 @@ git clone https://github.com/shenmintao/aic8800d80.git
 cd ~/aic8800d80
 ```
 
-今回のAX900は `chip_mcu_id=1` なので、
+今回の個体：
 
 ```bash
 git switch legacy-mcu1
-```
-
-```bash
 git pull
 ```
 
@@ -787,56 +769,40 @@ git pull
 git branch --show-current
 ```
 
-期待値：
-
 ```text
 legacy-mcu1
 ```
 
 ---
 
-# 15. AX900ドライバのインストール
+# 17. Driverのインストール
 
-## 15.1 インストール中の構成
-
-この時点では、
+インストール中はAX900を接続せず、
 
 ```text
 R36S
   │
   └─ Buffalo WLI-UC-GNM
-       └─ 標準rt2800usb
+       └─ rt2800usb
 ```
 
-のみを接続する。
+のみとする。
 
-AX900はまだ接続しない。
+これにより、
 
-理由は、
+- SSH接続を維持
+- AX900初期化とDriver installを分離
+- OTGへ複数無線アダプタを同時接続しない
 
-- SSH接続を安定して維持する
-- AX900のfirmware初期化とドライバ導入を分離する
-- 給電能力の限られたOTGへ複数の無線アダプタを同時接続しない
-
-ためである。
-
----
-
-## 15.2 インストール
+という状態を作る。
 
 ```bash
 cd ~/aic8800d80
-```
-
-```bash
 chmod +x install.sh
-```
-
-```bash
 sudo ./install.sh
 ```
 
-正常時：
+成功時：
 
 ```text
 Module built successfully.
@@ -859,17 +825,17 @@ aic8800/1.0.0, 6.12.32-lts-rk3326, aarch64: installed
 
 ---
 
-## 15.3 Bluetooth確認で停止する場合
+# 18. インストーラ末尾のBluetooth確認
 
-AX900をまだ接続していない状態では、インストーラ末尾の
+AX900をまだ挿していないため、
 
 ```text
 Checking for Bluetooth interfaces on combo adapters...
 ```
 
-でBluetooth deviceを待つ場合がある。
+でBluetooth device待ちになる場合がある。
 
-以下まで完了していれば、
+以下まで終了していれば、
 
 ```text
 DKMS module registered
@@ -877,43 +843,35 @@ Wi-Fi kernel module is loaded
 Firmware installed
 ```
 
-主要なインストールは終了している。
+主要なインストール処理は終了している。
 
-この段階なら `Ctrl+C` で終了してよい。
+その場合は `Ctrl+C` で終了してよい。
 
 ---
 
-# 16. BuffaloからAX900へ差し替える
+# 19. BuffaloからAX900への交換
 
-## 16.1 なぜ電源OFFして交換するのか
-
-USB OTG環境で2つのWi-Fiアダプタを同時に動作させる必要はない。
-
-最終構成そのものを評価するため、
-
-> **BuffaloとAX900を同時接続せず、完全に電源を落として差し替える**
-
-こととする。
-
-シャットダウン：
+ホットスワップではなく、一度完全にシャットダウンする。
 
 ```bash
 sudo poweroff
 ```
 
-完全に電源が落ちた後、
+電源OFF後、
 
-1. Buffalo WLI-UC-GNMを抜く
+1. Buffaloを抜く
 2. AX900を挿す
-3. R36Sを起動する
+3. R36Sを起動
+
+する。
+
+これにより最終構成そのものを評価する。
 
 ---
 
-# 17. AX900のUSB mode switch
+# 20. AX900のUSB mode switch
 
-AX900は最初からWi-Fi/Bluetooth deviceとして現れるわけではない。
-
-概ね、
+AX900は起動時、
 
 ```text
 a69c:5721
@@ -926,61 +884,39 @@ AIC Wlan
 AIC 8800D80
 ```
 
-と再列挙される。
+とUSB deviceを再列挙する。
 
-Driver installerが導入する、
+Driver installerにより、
 
-- udev rule
-- usb_modeswitch設定
+- udev
+- usb_modeswitch
 - firmware loader
 
-によって自動的に切り替える。
-
-通常運用では手動 `eject` は不要。
+が導入されるため、通常運用では手動 `eject` は不要。
 
 ---
 
-# 18. AX900 Wi-Fi
+# 21. Wi-Fi
 
-Wi-Fi Driver：
+Driver：
 
 ```text
 aic8800_fdrv
 ```
 
+確認：
+
+```bash
+nmcli d
+```
+
 GUIではXFCEのネットワークアイコンからSSIDを選択する。
-
-CLI確認：
-
-```bash
-nmcli d
-```
-
-SSID一覧：
-
-```bash
-nmcli device wifi list
-```
-
-接続後、
-
-```bash
-nmcli d
-```
-
-でWi-Fi interfaceが
-
-```text
-connected
-```
-
-になっていることを確認する。
 
 ---
 
-# 19. AX900 Bluetooth
+# 22. Bluetooth
 
-BluetoothはAICSemi専用Bluetooth driverではなく、
+BluetoothはLinux標準の、
 
 ```text
 btusb
@@ -1003,39 +939,26 @@ lsusb -t
     |__ Port 001: Dev xxx, If 2, Class=Vendor Specific Class, Driver=aic8800_fdrv, 480M
 ```
 
-この状態なら、
+つまり1つのAX900を、
 
 ```text
-Wi-Fi
-  → aic8800_fdrv
-
-Bluetooth
-  → btusb
+AX900
+ ├─ Wi-Fi
+ │    └─ aic8800_fdrv
+ │
+ └─ Bluetooth
+      └─ btusb
 ```
 
-へ正常にbindされている。
-
-Bluetooth GUIからpairingを行う。
-
-CLI：
-
-```bash
-bluetoothctl
-```
+として使用する。
 
 ---
 
-# 20. USB給電・安定性確認
+# 23. USB給電・安定性確認
 
-## 20.1 意図
+AX900採用の重要な目的はUSB負荷の低減である。
 
-AX900を使用する目的の一つは、
-
-> **Wi-FiとBluetoothを1本へ集約して、R36S OTGのUSB負荷を抑えること**
-
-である。
-
-最終構成でUSBが不安定になっていないことを確認する。
+最終構成で、
 
 ```bash
 sudo dmesg \
@@ -1043,15 +966,17 @@ sudo dmesg \
   | tail -50
 ```
 
-AX900はmode switchの途中でUSB deviceとして再列挙されるため、起動直後の
+を確認する。
+
+AX900は起動時にmode switchするため、
 
 ```text
 USB disconnect
 ```
 
-数回は正常。
+が数回出ること自体は正常。
 
-一方、通常利用中に以下が繰り返される場合は注意する。
+一方、
 
 ```text
 error -71
@@ -1061,202 +986,31 @@ over-current
 undervoltage
 ```
 
-今回のAX900単独構成では、継続的なUSBエラーや電圧低下の兆候は確認されていない。
+が通常利用中に繰り返される場合は、給電またはUSB信号品質を疑う。
+
+今回のAX900単独構成では継続的なUSB異常は確認されなかった。
 
 ---
 
-# 21. 最終USB構成
-
-```bash
-lsusb -t
-```
-
-最終的に、
-
-```text
-btusb
-btusb
-aic8800_fdrv
-```
-
-が同じAX900 deviceにbindされる。
-
-物理的には、
+# 24. 最終構成
 
 ```text
 R36S
- │
- └─ OTG
-      │
-      └─ AX900
-           ├─ Wi-Fi
-           │    └─ aic8800_fdrv
-           │
-           └─ Bluetooth
-                └─ btusb
-```
-
-となる。
-
-Wi-Fi用とBluetooth用に別々のUSB dongleを用意する必要がない。
-
----
-
-# 22. Buffalo WLI-UC-GNMの位置付け
-
-AX900導入後、Buffaloは通常運用から外す。
-
-ただし、
-
-> **復旧用アダプタとして保管する**
-
-価値が高い。
-
-理由はLinux標準 `rt2800usb` で動作し、AIC8800 driverやDKMSの状態に依存しないためである。
-
-AX900のdriver更新やKernel更新後にWi-Fiが利用できなくなった場合でも、Buffaloを接続してネットワークへ復帰できる。
-
-Wi-Fi deviceが出ない場合：
-
-```bash
-sudo modprobe rt2800usb
-```
-
-確認：
-
-```bash
-nmcli d
-```
-
----
-
-# 23. Kernel更新について
-
-AX900 driverはDKMS登録されている。
-
-確認：
-
-```bash
-dkms status
-```
-
-通常はKernel更新時に自動再ビルドされる。
-
-ただし、R36Sでは、
-
-- Kernel
-- Kernel headers
-- DTB
-- U-Boot
-- BSP
-
-が一般PCより密接に関係している。
-
-そのため、
-
-> **「UbuntuだからとりあえずKernelも最新版へ上げる」という運用は行わない。**
-
-新Kernelへ更新する場合は、
-
-1. R36S対応確認
-2. headers有無
-3. AX900 DKMS build可否
-4. DTB / U-Bootとの整合
-5. 起動確認
-
-を行ってから更新する。
-
----
-
-# 24. AX900 driver更新
-
-Driver更新時：
-
-```bash
-cd ~/aic8800d80
-```
-
-branch確認：
-
-```bash
-git branch --show-current
-```
-
-今回：
-
-```text
-legacy-mcu1
-```
-
-同じ `chip_mcu_id=1` のAX900ではこのbranchを維持する。
-
----
-
-# 25. NP2kai（任意）
-
-PC的利用の一例として、PC-98 emulatorであるNP2kaiをARM64 native buildできる。
-
-Repository：
-
-https://github.com/AZO234/NP2kai
-
-取得：
-
-```bash
-git clone https://github.com/AZO234/NP2kai.git
-cd NP2kai
-```
-
-SDL2版：
-
-```bash
-cmake -S . -B build \
-  -DBUILD_SDL=ON \
-  -DBUILD_WX=OFF \
-  -DBUILD_X=OFF \
-  -DUSE_SDL=2
-```
-
-Build：
-
-```bash
-cmake --build build -j2
-```
-
-生成：
-
-```text
-build/sdlnp21kai_sdl2
-```
-
-R36S / ARM64上でnative実行できる。
-
-これはR36Sが、
-
-> 「ゲーム機用Linuxを動かしているだけ」ではなく、通常のLinux softwareをbuild・実行できる小型PCとして利用可能
-
-であることの確認にもなる。
-
----
-
-# 26. 完成構成
-
-```text
-R36S
+│
+├─ RK3326
+├─ RAM 1GB
+├─ 3.5" 640×480 IPS LCD
+├─ Battery
+├─ Controller
+├─ microSD ×2
 │
 ├─ Armbian / Ubuntu 24.04
+│   ├─ XFCE
+│   ├─ Fcitx5 + Mozc
+│   ├─ xvkbd
+│   └─ SSH
 │
-├─ Linux 6.12.32-lts-rk3326
-│
-├─ XFCE
-│
-├─ Fcitx5 + Mozc
-│
-├─ xvkbd
-│
-├─ SSH
-│
-└─ USB OTG
+└─ USB-C OTG
      │
      └─ AX900 / AIC8800D80
           │
@@ -1276,55 +1030,138 @@ Buffalo WLI-UC-GNM
 
 ---
 
-# 27. この構成の考え方
+# 25. Buffaloは復旧用として残す
 
-今回のキッティングで重視したのは、単純に機能を追加することではない。
+AX900導入後、Buffaloは通常運用では使用しない。
 
-### OS
+ただしLinux標準driverで動作するため、
 
-R36S向けに調整されたArmbianを使用し、一般的なLinux PCに近い環境を作る。
+> **Driver更新やKernel更新後にAX900が使えなくなった場合の復旧用Wi-Fi**
 
-### 入力
+として保管する。
 
-物理キーボードがなくても `xvkbd` により最低限操作可能にする。
+必要なら、
 
-### 日本語
+```bash
+sudo modprobe rt2800usb
+```
 
-Fcitx5 + Mozcにより通常のLinux desktopとして日本語を扱えるようにする。
-
-### 初期ネットワーク
-
-Linux標準driverで動くBuffaloを利用し、外部driver導入前からSSHとInternet accessを確保する。
-
-### 最終ネットワーク
-
-R36SのOTG給電能力を考慮し、Wi-FiとBluetoothをAX900 1本へ集約する。
-
-### Driver
-
-AX900はDKMS管理とし、ソースからビルド可能な状態を維持する。
-
-### Kernel
-
-R36S独自部分を壊さないことを優先し、不必要なKernel更新を避ける。
+だけでDriverをロードできる。
 
 ---
 
-# 28. キッティング完了状態
+# 26. Kernel更新
 
-最終的に以下を確認できればキッティング完了とする。
+AX900 DriverはDKMS登録されている。
 
-- Armbian / XFCE起動
-- root filesystemの全容量利用
-- 日本語入力
-- `xvkbd`による画面キーボード
-- SSH接続
-- AX900 Wi-Fi接続
-- AX900 Bluetooth接続
-- `aic8800_fdrv` DKMS登録
-- `btusb`正常bind
-- USB High-Speed 480M接続
-- 継続的なUSBエラーなし
-- 電力不足を示す異常ログなし
+```bash
+dkms status
+```
 
-これによりR36Sを、USB機器を最小限に抑えた**携帯型Linux PC**として利用できる状態とする。
+ただしR36Sでは、
+
+- Kernel
+- headers
+- DTB
+- U-Boot
+- BSP
+
+の組み合わせが重要である。
+
+したがって、
+
+> **UbuntuだからKernelも無条件に最新版へ上げる**
+
+という運用はしない。
+
+R36S対応状況を確認してから更新する。
+
+---
+
+# 27. NP2kaiによるLinux PCとしての確認
+
+PC-98 emulatorであるNP2kaiもARM64 native buildできる。
+
+```bash
+git clone https://github.com/AZO234/NP2kai.git
+cd NP2kai
+```
+
+```bash
+cmake -S . -B build \
+  -DBUILD_SDL=ON \
+  -DBUILD_WX=OFF \
+  -DBUILD_X=OFF \
+  -DUSE_SDL=2
+```
+
+```bash
+cmake --build build -j2
+```
+
+生成：
+
+```text
+build/sdlnp21kai_sdl2
+```
+
+これは、
+
+> **R36Sが単にゲーム機用Linuxを動かしているだけではなく、通常のARM64 Linuxソフトウェアをbuildして実行できる**
+
+ことの確認にもなる。
+
+---
+
+# 28. この構成のまとめ
+
+今回の考え方は、
+
+```text
+標準R36S
+   ↓
+R36S用Armbian
+   ↓
+Buffaloで標準Wi-Fiを確保
+   ↓
+SSHでキッティング
+   ↓
+日本語・xvkbd・開発環境
+   ↓
+AX900 DriverをDKMS導入
+   ↓
+Buffaloを外す
+   ↓
+AX900 1本へWi-Fi + Bluetoothを集約
+```
+
+となる。
+
+Raspberry Pi Zero 2 Wと比較すると、R36SにはWi-Fi/BluetoothやGPIO環境で不利な点がある。
+
+一方で、
+
+- 1GB RAM
+- 液晶
+- ケース
+- バッテリー
+- ゲームコントローラー
+- microSD ×2
+- USB-C OTG
+- Linux対応
+
+が最初から一体化されている。
+
+そのため、
+
+> **約5,000円で入手できる「完成した携帯型ARM Linux端末」をPC化する**
+
+という観点では非常に面白いハードウェアである。
+
+ただし最大の注意点は、
+
+> **「R36S」という商品名だけでは内部ハードウェアを保証できない**
+
+こと。
+
+Armbian導入前にRK3326系の標準R36Sであることを確認し、その上でキッティングを開始する。
