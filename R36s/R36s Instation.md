@@ -69,10 +69,12 @@ R36Sは本来レトロゲーム用の携帯端末だが、ハードウェアと�
 | 操作系 | D-pad、ABXY、2スティック等 | なし |
 | microSD | 2スロット | 1スロット |
 | USB OTG | USB-C | micro USB |
-| Wi-Fi | なし | 2.4GHz Wi-Fi内蔵 |
-| Bluetooth | なし | Bluetooth 4.2内蔵 |
+| Wi-Fi | なし(Wi-Fi 6) | 2.4GHz Wi-Fi内蔵 |
+| Bluetooth | なし(BT 5.3) | Bluetooth 4.2内蔵 |
 | GPIO | 実質利用対象外 | 40pin |
 | 映像出力 | なし | mini HDMI |
+
+※()内は下記USBレシーバーの利用時
 
 CPUについてはR36SのRK3326の方が動作クロックは高いが、Cortex-A35とCortex-A53ではCPUコアのアーキテクチャが異なるため、**あらゆる処理でR36Sの方が高速という意味ではない**。
 PC化という用途で明確なメリットになるのは、
